@@ -1,0 +1,756 @@
+﻿
+# =========================================== 
+# RF-CR: Random Forest vs. Cox Regression - R 
+# =========================================== 
+
+# https://sosal.kr/927 
+# https://rpubs.com/ledongnhatnam/246047 
+# https://extras.springer.com/2014/978-3-319-04181-0/MachineLearninginMedicine-Cookbookfiles 
+
+# =========== 
+# Preparation 
+# =========== 
+
+# 01 Packages 
+
+# install.packages("installr") 
+# library(installr) 
+# updateR() 
+# version 
+
+# install.packages('latticeExtra') 
+# install.packages('Hmisc') 
+# install.packages('lattice') 
+# install.packages('psych') 
+# install.packages('randomForestSRC') 
+# install.packages('PMCMR') 
+# install.packages('RWeka') 
+
+# install.packages('CoxBoost') 
+# install.packages('foreign') 
+# install.packages('ggfortify') 
+# install.packages('gridExtra') 
+# install.packages('mlr') 
+# install.packages('survival') 
+# install.packages('tidyverse') 
+
+# 02 Data 
+
+d001<-read.csv('C:\\Users\\Administrator\\s001.csv',head=TRUE,sep=",") 
+# d001<-read.csv(file.choose(),head=TRUE,sep=",") 
+# d001=d001[-c(1)]    # Deleting the ID Column or the 1st Column Created by to_csv (Python) 
+colMeans(is.na(d001)) # Missing Rates 
+d001[d001==""]<-NA    # Change (Unrecognized) Empty Cells to Missing Values 
+colMeans(is.na(d001)) # Missing Rates 
+
+# Option 1: Piece-Wise Deletion 
+# d001<-na.omit(d001) 
+
+# Option 2: Dropping Variables Whose Missing Rates are Greater than 0.30 
+# d001=subset(d001,select=-c(x001,x002,x003)) 
+# Or Manually Delete 
+
+# Median Imputation 
+
+d001<-apply(d001,2,function(x) ifelse(is.na(x),median(x, na.rm=T),x)) 
+colMeans(is.na(d001)) # Missing Rates 
+d001 
+str(d001) 
+summary(d001) 
+
+# Manually Impute 
+
+# Table 02 Descriptive Statistics 
+
+getwd()  
+
+# [1] "C:/Users/Administrator/Documents" 
+
+write.csv(d001,"s001.csv") 
+
+# =========================== 
+# Model Building & Evaluation 
+# =========================== 
+
+# 01 Preparation - Colors 
+
+library(foreign) 
+library(tidyverse) 
+library(survival) 
+library(mlr) 
+library(gridExtra) 
+library(ggfortify) 
+library(CoxBoost) 
+
+my_theme <- function(base_size =9, base_family = "sans"){
+  theme_minimal(base_size = base_size, base_family = base_family) +
+    theme(
+      axis.text = element_text(size=8),
+      axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5),
+      axis.title = element_text(size =8),
+      panel.grid.major = element_line(color = "gray"),
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "#ffffff"),
+      strip.background = element_rect(fill = "black", color = "black", size =0.5),
+      strip.text = element_text(face = "bold", size = 8, color = "white"),
+      legend.position = "bottom",
+      legend.justification = "center",
+      legend.background = element_blank(),
+      panel.border = element_rect(color = "grey5", fill = NA, size = 0.5)
+    )
+}
+
+theme_set(my_theme()) 
+mycolors=c("darkred","black","#004431","#000c44","#2d1600","purple","#202302") 
+myfillcolors=c("#d10c0c","grey10","#1e6651","#213989","#5b431a","purple","#393f03") 
+
+# 01 Descriptive Analysis 
+
+d001<-read.csv('C:\\Users\\Administrator\\s001.csv',head=TRUE,sep=",") 
+# d001<-read.csv(file.choose(),head=TRUE,sep=",") 
+d001=d001[-c(1,4)]    # Deleting the ID Column or the 1st Column Created by to_csv (Python) 
+colMeans(is.na(d001)) # Missing Rates 
+c001<-c("y002",
+        "x001","x002","x003","x004","x005","x006","x007","x008","x009","x010",
+        "x011","x012","x013","x014","x015","x016","x017",
+                             "x024","x025","x026","x027","x028","x029","x030",
+        "x031","x032","x033","x034","x035","x036",
+                             "x074","x075","x076","x077") 
+d001[c001]<-lapply(d001[c001],factor) 
+d001 
+str(d001) 
+summary(d001) 
+
+# psych::describeBy(d001$y001,group=d001$x001) 
+
+# Table 01 
+
+# 02 Kaplan-Meier Curve & Cox-Proportional-Hazard Regression 
+
+library(survival) 
+f000=survfit(Surv(y001,y002=="1")~x026,data=d001) # x028 x027 x003 x031 x019 x007 
+# f001=coxph(Surv(y001,y002=="1")~x026,data=d001) 
+# summary(f000) 
+# summary(f001) 
+
+library(ggfortify) 
+autoplot(f000)+scale_color_manual(values=mycolors)+scale_fill_manual(values=myfillcolors) 
+
+library(survival) 
+f002=coxph(Surv(y001,y002=="1")~.,data=d001) 
+summary(f002) 
+
+# Table 02 
+
+# 03 Variable Importance from Random Forest 
+
+d001<-read.csv('C:\\Users\\Administrator\\s001.csv',head=TRUE,sep=",") 
+# d001<-read.csv(file.choose(),head=TRUE,sep=",") 
+d001=d001[-c(1,4)]    # Deleting the ID Column or the 1st Column Created by to_csv (Python) 
+colMeans(is.na(d001)) # Missing Rates 
+c001<-c("x001","x002","x003","x004","x005","x006","x007","x008","x009","x010",
+        "x011","x012","x013","x014","x015","x016","x017",
+                             "x024","x025","x026","x027","x028","x029","x030",
+        "x031","x032","x033","x034","x035","x036",
+                             "x074","x075","x076","x077") 
+                      # y002 Number Not Factor 
+d001[c001]<-lapply(d001[c001],factor) 
+d001 
+str(d001) 
+summary(d001) 
+
+library(randomForestSRC) 
+f003=rfsrc(Surv(y001,y002==1)~.,data=d001) # (y001,y002) # (y001,y002=="1") Don't Work 
+summary(f003) 
+print(vimp(f003)$importance) 
+
+Table 02 
+
+# ===================================================== 
+# RF-LR: Random Forest vs. Logistic Regression - Python 
+# ===================================================== 
+
+# ========================== 
+# 000 Descriptive Statistics 
+# 001 LR 
+# 002 DT 
+# 003 NB 
+# 004 RF 
+# 005 SVM 
+# 006 ANN 
+# ========================== 
+
+# Reading the File without the Directory 
+
+# import tkinter as tk 
+# from tkinter import filedialog 
+# root=tk.Tk() 
+# root.withdraw() 
+# d001=filedialog.askopenfilename() 
+# import pandas as pd 
+# import numpy as np 
+# from sklearn.model_selection import train_test_split 
+# # from sklearn.cross_validation import train_test_split # Older Version 
+# F009=pd.read_csv(d001) 
+
+# Reading the File with the Directory 
+
+import pandas as pd 
+import numpy as np 
+from sklearn.model_selection import train_test_split 
+# from sklearn.cross_validation import train_test_split # Older Version 
+F009=pd.read_csv('C:\\Users\\Administrator\\s001.csv') 
+# F009=pd.read_csv('/home/sonic/s001.csv') 
+# F009=F009.iloc[:,2:] # Deleting the ID Column 
+c000=["y002","y003","x001","x002","x003","x004","x005","x006","x007","x008","x009","x010",
+                    "x011","x012","x013","x014","x015","x016","x017",
+                                         "x024","x025","x026","x027","x028","x029","x030",
+                    "x031","x032","x033","x034","x035","x036",
+                                         "x074","x075","x076","x077"] 
+F009[c000]=F009[c000].apply(lambda x: x.astype('category')) # Specifying Categorical Variables 
+F009.head(10) 
+F009[c000].describe(include='all') 
+F009.apply(lambda x: sum(x.isnull()),axis=0) 
+# F009=F009.fillna(F009.median(),inplace=True) # F009=F009.dropna() 
+F009.describe(include='all') 
+# F009=F009.iloc[0:725,:]      # Slicing for the Batch Size of 25 
+# F009.describe(include='all') 
+
+# Descriptive Statistics 
+
+# import pandas 
+# F009["y003"].value_counts()        # Categorical Variable 
+# # Repeat for x001, ... ,x036 
+# # Create Data with Continuous Variables only for Descriptive Statistics 
+# c001=["x036","x037","x038","x039","x040"] 
+# F009[c001].describe(include='all') # Continuous  Variable 
+
+# T Test 
+
+# # y003==0 vs. y003==1 
+# F011=F009[F009["y002"]==0] # Slicing for y001 with 0 
+# F012=F009[F009["y002"]==1] # Slicing for y001 with 1 
+# F011[c001].describe(include='all') 
+# F012[c001].describe(include='all') 
+# Define c001 with Top 06 RF-VI 
+
+w000=F009.iloc[:,4:]         # Attributes 
+z000=F009.iloc[:,3 ]         # Class 
+
+r000=25     # Runs 
+w001=dict() 
+w002=dict() 
+z001=dict() 
+z002=dict() 
+z003=dict() 
+a100=dict() 
+a200=dict() 
+a300=dict() 
+a400=dict() 
+a500=dict() 
+a600=dict() 
+u100=dict() 
+u200=dict() 
+u300=dict() 
+u400=dict() 
+u500=dict() 
+u600=dict() 
+preds=dict() 
+probs=dict() 
+fpr=dict() 
+tpr=dict() 
+threshold=dict() 
+
+for i in range(r000): 
+    w001[i],w002[i],z001[i],z002[i]=train_test_split(w000,z000,test_size=0.25) 
+    w001[i].iloc[0:10,0:5] 
+    w002[i].iloc[0:10,0:5] 
+    z001[i][0:10] 
+    z002[i][0:10] 
+
+    # Model Building & Evaluation - LR 
+
+    from sklearn import linear_model 
+    model=linear_model.LogisticRegression() 
+    m001=model.fit(w001[i],z001[i]) 
+    print(m001) 
+    from sklearn.metrics import confusion_matrix 
+    from sklearn.metrics import accuracy_score 
+    z003[i]=m001.predict(w002[i]) 
+    # confusion_matrix(z002[i],z003[i]) 
+    a100[i]=m001.score(X=w002[i],y=z002[i]) 
+
+    # Model Building & Evaluation - DT 
+
+    from sklearn import tree 
+    model=tree.DecisionTreeClassifier() 
+    m002=model.fit(w001[i],z001[i]) 
+    print(m002) 
+    from sklearn.metrics import confusion_matrix 
+    from sklearn.metrics import accuracy_score 
+    z003[i]=m002.predict(w002[i]) 
+    # confusion_matrix(z002[i],z003[i]) 
+    a200[i]=m002.score(X=w002[i],y=z002[i]) 
+
+    # Model Building & Evaluation - NB 
+
+    from sklearn.naive_bayes import GaussianNB 
+    model=GaussianNB() 
+    m003=model.fit(w001[i],z001[i]) 
+    print(m003) 
+    from sklearn.metrics import confusion_matrix 
+    from sklearn.metrics import accuracy_score 
+    z003[i]=m003.predict(w002[i]) 
+    # confusion_matrix(z002[i],z003[i]) 
+    a300[i]=m003.score(X=w002[i],y=z002[i]) 
+
+    # Model Building & Evaluation - RF 
+
+    from sklearn.ensemble import RandomForestClassifier 
+    model=RandomForestClassifier(n_estimators=1000) 
+    m004=model.fit(w001[i],z001[i]) 
+    print(m004) 
+    i004=m004.feature_importances_ 
+    print(i004) 
+
+    from sklearn.metrics import confusion_matrix 
+    from sklearn.metrics import accuracy_score 
+    z003[i]=m004.predict(w002[i]) 
+    # confusion_matrix(z002[i],z003[i]) 
+    a400[i]=m004.score(X=w002[i],y=z002[i]) 
+
+    # Model Building & Evaluation - SVM 
+
+    from sklearn import svm 
+    model=svm.SVC(probability=True) 
+    m005=model.fit(w001[i],z001[i]) 
+    print(m005) 
+    from sklearn.metrics import confusion_matrix 
+    from sklearn.metrics import accuracy_score 
+    z003[i]=m005.predict(w002[i]) 
+    # confusion_matrix(z002[i],z003[i]) 
+    a500[i]=m005.score(X=w002[i],y=z002[i]) 
+
+    # Model Building & Evaluation - ANN 
+
+    from sklearn.neural_network import MLPClassifier 
+    from sklearn.multiclass import OneVsRestClassifier 
+    model=MLPClassifier(solver='lbfgs',alpha=1e-5,hidden_layer_sizes=(10,10),random_state=1) 
+    m006=model.fit(w001[i],z001[i]) 
+    print(m006) 
+    from sklearn.metrics import confusion_matrix 
+    from sklearn.metrics import accuracy_score 
+    z003[i]=m006.predict(w002[i]) 
+    # confusion_matrix(z002[i],z003[i]) 
+    a600[i]=m006.score(X=w002[i],y=z002[i]) 
+
+    # ROC Curve - LR 
+
+    from sklearn import metrics 
+    probs[i] = m001.predict_proba(w002[i]) 
+    preds[i] = probs[i][:,1] 
+    fpr[i], tpr[i], threshold[i] = metrics.roc_curve(z002[i], preds[i]) 
+    u100[i] = metrics.auc(fpr[i], tpr[i]) 
+
+    # ROC Curve - DT 
+
+    from sklearn import metrics 
+    probs[i] = m002.predict_proba(w002[i]) 
+    preds[i] = probs[i][:,1] 
+    fpr[i], tpr[i], threshold[i] = metrics.roc_curve(z002[i], preds[i]) 
+    u200[i] = metrics.auc(fpr[i], tpr[i]) 
+
+    # ROC Curve - NB 
+
+    from sklearn import metrics 
+    probs[i] = m003.predict_proba(w002[i]) 
+    preds[i] = probs[i][:,1] 
+    fpr[i], tpr[i], threshold[i] = metrics.roc_curve(z002[i], preds[i]) 
+    u300[i] = metrics.auc(fpr[i], tpr[i]) 
+
+    # ROC Curve - RF 
+
+    from sklearn import metrics 
+    probs[i] = m004.predict_proba(w002[i]) 
+    preds[i] = probs[i][:,1] 
+    fpr[i], tpr[i], threshold[i] = metrics.roc_curve(z002[i], preds[i]) 
+    u400[i] = metrics.auc(fpr[i], tpr[i]) 
+
+    # ROC Curve - SVM 
+
+    from sklearn import metrics 
+    probs[i] = m005.predict_proba(w002[i]) 
+    preds[i] = probs[i][:,1] 
+    fpr[i], tpr[i], threshold[i] = metrics.roc_curve(z002[i], preds[i]) 
+    u500[i] = metrics.auc(fpr[i], tpr[i]) 
+
+    # ROC Curve - ANN 
+
+    from sklearn import metrics 
+    probs[i] = m006.predict_proba(w002[i]) 
+    preds[i] = probs[i][:,1] 
+    fpr[i], tpr[i], threshold[i] = metrics.roc_curve(z002[i], preds[i]) 
+    u600[i] = metrics.auc(fpr[i], tpr[i]) 
+
+# ===================================== 
+# Performance Mean & Standard Deviation 
+# ===================================== 
+
+# Accuracy 
+
+# a100 LR 
+# a200 DT 
+# a300 NB 
+# a400 RF 
+# a500 SVM 
+# a600 ANN 
+
+a100s=a100[0]+a100[1]+a100[2]+a100[3]+a100[4]+a100[5]+a100[6]+a100[7]+a100[8]+a100[9]+a100[10]+a100[11]+a100[12]+a100[13]+a100[14]+a100[15]+a100[16]+a100[17]+a100[18]+a100[19]+a100[20]+a100[21]+a100[22]+a100[23]+a100[24] 
+a200s=a200[0]+a200[1]+a200[2]+a200[3]+a200[4]+a200[5]+a200[6]+a200[7]+a200[8]+a200[9]+a200[10]+a200[11]+a200[12]+a200[13]+a200[14]+a200[15]+a200[16]+a200[17]+a200[18]+a200[19]+a200[20]+a200[21]+a200[22]+a200[23]+a200[24] 
+a300s=a300[0]+a300[1]+a300[2]+a300[3]+a300[4]+a300[5]+a300[6]+a300[7]+a300[8]+a300[9]+a300[10]+a300[11]+a300[12]+a300[13]+a300[14]+a300[15]+a300[16]+a300[17]+a300[18]+a300[19]+a300[20]+a300[21]+a300[22]+a300[23]+a300[24] 
+a400s=a400[0]+a400[1]+a400[2]+a400[3]+a400[4]+a400[5]+a400[6]+a400[7]+a400[8]+a400[9]+a400[10]+a400[11]+a400[12]+a400[13]+a400[14]+a400[15]+a400[16]+a400[17]+a400[18]+a400[19]+a400[20]+a400[21]+a400[22]+a400[23]+a400[24] 
+a500s=a500[0]+a500[1]+a500[2]+a500[3]+a500[4]+a500[5]+a500[6]+a500[7]+a500[8]+a500[9]+a500[10]+a500[11]+a500[12]+a500[13]+a500[14]+a500[15]+a500[16]+a500[17]+a500[18]+a500[19]+a500[20]+a500[21]+a500[22]+a500[23]+a500[24] 
+a600s=a600[0]+a600[1]+a600[2]+a600[3]+a600[4]+a600[5]+a600[6]+a600[7]+a600[8]+a600[9]+a600[10]+a600[11]+a600[12]+a600[13]+a600[14]+a600[15]+a600[16]+a600[17]+a600[18]+a600[19]+a600[20]+a600[21]+a600[22]+a600[23]+a600[24] 
+
+# AUC 
+
+# u100 LR 
+# u200 DT 
+# u300 NB 
+# u400 RF 
+# u500 SVM 
+# u600 ANN 
+
+u100s=u100[0]+u100[1]+u100[2]+u100[3]+u100[4]+u100[5]+u100[6]+u100[7]+u100[8]+u100[9]+u100[10]+u100[11]+u100[12]+u100[13]+u100[14]+u100[15]+u100[16]+u100[17]+u100[18]+u100[19]+u100[20]+u100[21]+u100[22]+u100[23]+u100[24] 
+u200s=u200[0]+u200[1]+u200[2]+u200[3]+u200[4]+u200[5]+u200[6]+u200[7]+u200[8]+u200[9]+u200[10]+u200[11]+u200[12]+u200[13]+u200[14]+u200[15]+u200[16]+u200[17]+u200[18]+u200[19]+u200[20]+u200[21]+u200[22]+u200[23]+u200[24] 
+u300s=u300[0]+u300[1]+u300[2]+u300[3]+u300[4]+u300[5]+u300[6]+u300[7]+u300[8]+u300[9]+u300[10]+u300[11]+u300[12]+u300[13]+u300[14]+u300[15]+u300[16]+u300[17]+u300[18]+u300[19]+u300[20]+u300[21]+u300[22]+u300[23]+u300[24] 
+u400s=u400[0]+u400[1]+u400[2]+u400[3]+u400[4]+u400[5]+u400[6]+u400[7]+u400[8]+u400[9]+u400[10]+u400[11]+u400[12]+u400[13]+u400[14]+u400[15]+u400[16]+u400[17]+u400[18]+u400[19]+u400[20]+u400[21]+u400[22]+u400[23]+u400[24] 
+u500s=u500[0]+u500[1]+u500[2]+u500[3]+u500[4]+u500[5]+u500[6]+u500[7]+u500[8]+u500[9]+u500[10]+u500[11]+u500[12]+u500[13]+u500[14]+u500[15]+u500[16]+u500[17]+u500[18]+u500[19]+u500[20]+u500[21]+u500[22]+u500[23]+u500[24] 
+u600s=u600[0]+u600[1]+u600[2]+u600[3]+u600[4]+u600[5]+u600[6]+u600[7]+u600[8]+u600[9]+u600[10]+u600[11]+u600[12]+u600[13]+u600[14]+u600[15]+u600[16]+u600[17]+u600[18]+u600[19]+u600[20]+u600[21]+u600[22]+u600[23]+u600[24] 
+
+import statistics 
+
+l100s=[u100[0],u100[1],u100[2],u100[3],u100[4],u100[5],u100[6],u100[7],u100[8],u100[9],u100[10],u100[11],u100[12],u100[13],u100[14],u100[15],u100[16],u100[17],u100[18],u100[19],u100[20],u100[21],u100[22],u100[23],u100[24]] 
+l200s=[u200[0],u200[1],u200[2],u200[3],u200[4],u200[5],u200[6],u200[7],u200[8],u200[9],u200[10],u200[11],u200[12],u200[13],u200[14],u200[15],u200[16],u200[17],u200[18],u200[19],u200[20],u200[21],u200[22],u200[23],u200[24]] 
+l300s=[u300[0],u300[1],u300[2],u300[3],u300[4],u300[5],u300[6],u300[7],u300[8],u300[9],u300[10],u300[11],u300[12],u300[13],u300[14],u300[15],u300[16],u300[17],u300[18],u300[19],u300[20],u300[21],u300[22],u300[23],u300[24]] 
+l400s=[u400[0],u400[1],u400[2],u400[3],u400[4],u400[5],u400[6],u400[7],u400[8],u400[9],u400[10],u400[11],u400[12],u400[13],u400[14],u400[15],u400[16],u400[17],u400[18],u400[19],u400[20],u400[21],u400[22],u400[23],u400[24]] 
+l500s=[u500[0],u500[1],u500[2],u500[3],u500[4],u500[5],u500[6],u500[7],u500[8],u500[9],u500[10],u500[11],u500[12],u500[13],u500[14],u500[15],u500[16],u500[17],u500[18],u500[19],u500[20],u500[21],u500[22],u500[23],u500[24]] 
+l600s=[u600[0],u600[1],u600[2],u600[3],u600[4],u600[5],u600[6],u600[7],u600[8],u600[9],u600[10],u600[11],u600[12],u600[13],u600[14],u600[15],u600[16],u600[17],u600[18],u600[19],u600[20],u600[21],u600[22],u600[23],u600[24]] 
+s100s=statistics.stdev(l100s) 
+s200s=statistics.stdev(l200s) 
+s300s=statistics.stdev(l300s) 
+s400s=statistics.stdev(l400s) 
+s500s=statistics.stdev(l500s) 
+s600s=statistics.stdev(l600s) 
+
+# Print 
+
+print(a100s,a200s,a300s,a400s,a500s,a600s,u100s,u200s,u300s,u400s,u500s,u600s) 
+print(s100s,s200s,s300s,s400s,s500s,s600s) 
+
+# ================== 
+# ROC Curve - Python 
+# ================== 
+
+import pandas as pd 
+import numpy as np 
+from sklearn.model_selection import train_test_split 
+# from sklearn.cross_validation import train_test_split # Older Version 
+F009=pd.read_csv('C:\\Users\\Administrator\\s001.csv') 
+# F009=pd.read_csv('/home/sonic/s001.csv') 
+# F009=F009.iloc[:,2:] # Deleting the ID Column 
+c000=["y002","y003","x001","x002","x003","x004","x005","x006","x007","x008","x009","x010",
+                    "x011","x012","x013","x014","x015","x016","x017",
+                                         "x024","x025","x026","x027","x028","x029","x030",
+                    "x031","x032","x033","x034","x035","x036",
+                                         "x074","x075","x076","x077"] 
+F009[c000]=F009[c000].apply(lambda x: x.astype('category')) # Specifying Categorical Variables 
+F009.head(10) 
+F009[c000].describe(include='all') 
+F009.apply(lambda x: sum(x.isnull()),axis=0) 
+# F009=F009.fillna(F009.median(),inplace=True) # F009=F009.dropna() 
+F009.describe(include='all') 
+# F009=F009.iloc[0:725,:]      # Slicing for the Batch Size of 25 
+# F009.describe(include='all') 
+
+w000=F009.iloc[:,4:]     # Attributes 
+n000=F009.iloc[:,4:]     # Attributes ANN For Possible Normalization 
+z000=F009.iloc[:,3]      # Class 
+w001,w002,z001,z002=train_test_split(w000,z000,test_size=0.25) 
+n001,n002,z001,z002=train_test_split(n000,z000,test_size=0.25) 
+import pandas 
+s001=pandas.Series(z001) 
+s002=pandas.Series(z002) 
+c001=s001.value_counts() # Frequency Table 
+c002=s002.value_counts() # Frequency Table 
+c001 
+c002 
+w001.iloc[0:10,0:5] 
+w002.iloc[0:10,0:5] 
+n001.iloc[0:10,0:5] 
+n002.iloc[0:10,0:5] 
+z001[0:10] 
+z002[0:10] 
+
+# Model Building & Evaluation - LR 
+
+from sklearn import linear_model 
+model=linear_model.LogisticRegression() 
+m001=model.fit(w001,z001) 
+print(m001) 
+from sklearn.metrics import confusion_matrix 
+from sklearn.metrics import accuracy_score 
+z003=m001.predict(w002) 
+# confusion_matrix(z002,z003) 
+acc21=m001.score(X=w002,y=z002) 
+CM=confusion_matrix(z002,z003) 
+spe21=CM[0,0]/(CM[0,0]+CM[0,1]) 
+sen21=CM[1,1]/(CM[1,0]+CM[1,1]) 
+
+# Model Building & Evaluation - DT 
+
+from sklearn import tree 
+model=tree.DecisionTreeClassifier() 
+m002=model.fit(w001,z001) 
+print(m002) 
+from sklearn.metrics import confusion_matrix 
+from sklearn.metrics import accuracy_score 
+z003=m002.predict(w002) 
+# confusion_matrix(z002,z003) 
+acc22=m002.score(X=w002,y=z002) 
+CM=confusion_matrix(z002,z003) 
+spe22=CM[0,0]/(CM[0,0]+CM[0,1]) 
+sen22=CM[1,1]/(CM[1,0]+CM[1,1]) 
+
+# Model Building & Evaluation - NB 
+
+from sklearn.naive_bayes import GaussianNB 
+model=GaussianNB() 
+m003=model.fit(w001,z001) 
+print(m003) 
+from sklearn.metrics import confusion_matrix 
+from sklearn.metrics import accuracy_score 
+z003=m003.predict(w002) 
+# confusion_matrix(z002,z003) 
+acc23=m003.score(X=w002,y=z002) 
+CM=confusion_matrix(z002,z003) 
+spe23=CM[0,0]/(CM[0,0]+CM[0,1]) 
+sen23=CM[1,1]/(CM[1,0]+CM[1,1]) 
+
+# Model Building & Evaluation - RF 
+
+from sklearn.ensemble import RandomForestClassifier 
+model=RandomForestClassifier(n_estimators=1000) 
+m004=model.fit(w001,z001) 
+print(m004) 
+i004=m004.feature_importances_ 
+print(i004) 
+
+from sklearn.metrics import confusion_matrix 
+from sklearn.metrics import accuracy_score 
+z003=m004.predict(w002) 
+# confusion_matrix(z002,z003) 
+acc24=m004.score(X=w002,y=z002) 
+CM=confusion_matrix(z002,z003) 
+spe24=CM[0,0]/(CM[0,0]+CM[0,1]) 
+sen24=CM[1,1]/(CM[1,0]+CM[1,1]) 
+
+# Model Building & Evaluation - SVM 
+
+from sklearn import svm 
+model=svm.SVC(probability=True) 
+m005=model.fit(w001,z001) 
+print(m005) 
+from sklearn.metrics import confusion_matrix 
+from sklearn.metrics import accuracy_score 
+z003=m005.predict(w002) 
+# confusion_matrix(z002,z003) 
+acc25=m005.score(X=w002,y=z002) 
+CM=confusion_matrix(z002,z003) 
+spe25=CM[0,0]/(CM[0,0]+CM[0,1]) 
+sen25=CM[1,1]/(CM[1,0]+CM[1,1]) 
+
+# Model Building & Evaluation - ANN Hidden Layer Sizes (10,10) 
+
+from sklearn.neural_network import MLPClassifier 
+from sklearn.multiclass import OneVsRestClassifier 
+model=MLPClassifier(solver='lbfgs',alpha=1e-5,hidden_layer_sizes=(10,10),random_state=1) 
+m006=model.fit(n001,z001) 
+print(m006) 
+from sklearn.metrics import confusion_matrix 
+from sklearn.metrics import accuracy_score 
+z003=m006.predict(n002) 
+# confusion_matrix(z002,z003) 
+acc26=m006.score(X=n002,y=z002) 
+CM=confusion_matrix(z002,z003) 
+spe26=CM[0,0]/(CM[0,0]+CM[0,1]) 
+sen26=CM[1,1]/(CM[1,0]+CM[1,1]) 
+
+# ROC Curve 
+
+from sklearn import metrics 
+probs = m001.predict_proba(w002) 
+preds = probs[:,1] 
+fpr21, tpr21, threshold21 = metrics.roc_curve(z002, preds) 
+auc21 = metrics.auc(fpr21, tpr21) 
+
+from sklearn import metrics 
+probs = m002.predict_proba(w002) 
+preds = probs[:,1] 
+fpr22, tpr22, threshold22 = metrics.roc_curve(z002, preds) 
+auc22 = metrics.auc(fpr22, tpr22) 
+
+from sklearn import metrics 
+probs = m003.predict_proba(w002) 
+preds = probs[:,1] 
+fpr23, tpr23, threshold23 = metrics.roc_curve(z002, preds) 
+auc23 = metrics.auc(fpr23, tpr23) 
+
+from sklearn import metrics 
+probs = m004.predict_proba(w002) 
+preds = probs[:,1] 
+fpr24, tpr24, threshold24 = metrics.roc_curve(z002, preds) 
+auc24 = metrics.auc(fpr24, tpr24) 
+
+from sklearn import metrics 
+probs = m005.predict_proba(w002) 
+preds = probs[:,1] 
+fpr25, tpr25, threshold25 = metrics.roc_curve(z002, preds) 
+auc25 = metrics.auc(fpr25, tpr25) 
+
+from sklearn import metrics 
+probs = m006.predict_proba(n002) 
+preds = probs[:,1] 
+fpr26, tpr26, threshold26 = metrics.roc_curve(z002, preds) 
+auc26 = metrics.auc(fpr26, tpr26) 
+
+import matplotlib.pyplot as plt
+plt.title('Receiver Operating Characteristic')
+plt.plot(fpr21, tpr21, 'c', label = 'AUC-LR = %0.2f' % auc21)
+plt.plot(fpr22, tpr22, 'g', label = 'AUC-DT = %0.2f' % auc22)
+plt.plot(fpr23, tpr23, 'r', label = 'AUC-NB = %0.2f' % auc23)
+plt.plot(fpr24, tpr24, 'b', label = 'AUC-RF = %0.2f' % auc24)
+plt.plot(fpr25, tpr25, 'm', label = 'AUC-SVM = %0.2f' % auc25)
+plt.plot(fpr26, tpr26, 'k', label = 'AUC-ANN = %0.2f' % auc26)
+plt.legend(loc = 'lower right')
+plt.plot([0, 1], [0, 1],'r--')
+plt.xlim([0, 1])
+plt.ylim([0, 1])
+plt.ylabel('True Positive Rate')
+plt.xlabel('False Positive Rate')
+plt.show() 
+
+# ============= 
+# SHAP - Python 
+# ============= 
+
+# Source https://aigerimshopenova.medium.com/random-forest-classifier-and-shap-how-to-understand-your-customers-and-interpret-a-black-box-model-6166d86820d9 
+
+import pandas as pd 
+import numpy as np 
+from sklearn.model_selection import train_test_split 
+# from sklearn.cross_validation import train_test_split # Older Version 
+F009=pd.read_csv('C:\\Users\\Administrator\\s001.csv') 
+# F009=pd.read_csv('/home/sonic/s001.csv') 
+# F009=F009.iloc[:,2:] # Deleting the ID Column 
+c000=["y002","y003","x001","x002","x003","x004","x005","x006","x007","x008","x009","x010",
+                    "x011","x012","x013","x014","x015","x016","x017",
+                                         "x024","x025","x026","x027","x028","x029","x030",
+                    "x031","x032","x033","x034","x035","x036",
+                                         "x074","x075","x076","x077"] 
+F009[c000]=F009[c000].apply(lambda x: x.astype('category')) # Specifying Categorical Variables 
+F009.head(10) 
+F009[c000].describe(include='all') 
+F009.apply(lambda x: sum(x.isnull()),axis=0) 
+# F009=F009.fillna(F009.median(),inplace=True) # F009=F009.dropna() 
+F009.describe(include='all') 
+# F009=F009.iloc[0:725,:]      # Slicing for the Batch Size of 25 
+# F009.describe(include='all') 
+
+w000=F009.iloc[:,4:]     # Attributes 
+n000=F009.iloc[:,4:]     # Attributes ANN For Possible Normalization 
+z000=F009.iloc[:,3]      # Class 
+w001,w002,z001,z002=train_test_split(w000,z000,test_size=0.25) 
+n001,n002,z001,z002=train_test_split(n000,z000,test_size=0.25) 
+import pandas 
+s001=pandas.Series(z001) 
+s002=pandas.Series(z002) 
+c001=s001.value_counts() # Frequency Table 
+c002=s002.value_counts() # Frequency Table 
+c001 
+c002 
+w001.iloc[0:10,0:5] 
+w002.iloc[0:10,0:5] 
+n001.iloc[0:10,0:5] 
+n002.iloc[0:10,0:5] 
+z001[0:10] 
+z002[0:10] 
+
+# Model Building & Evaluation - RF 
+
+from sklearn.ensemble import RandomForestClassifier 
+model=RandomForestClassifier(n_estimators=1000) 
+m004=model.fit(w001,z001) 
+print(m004) 
+i004=m004.feature_importances_ 
+print(i004) 
+
+from sklearn.metrics import confusion_matrix 
+from sklearn.metrics import accuracy_score 
+z003=m004.predict(w002) 
+# confusion_matrix(z002,z003) 
+acc24=m004.score(X=w002,y=z002) 
+CM=confusion_matrix(z002,z003) 
+spe24=CM[0,0]/(CM[0,0]+CM[0,1]) 
+sen24=CM[1,1]/(CM[1,0]+CM[1,1]) 
+
+# conda install -c conda-forge/label/cf201901 shap 
+
+import shap 
+shap.initjs() 
+%time 
+samples = w001 
+explainer = shap.TreeExplainer(m004) 
+shap_values = explainer.shap_values(samples, approximate=False) # check_additivity=False 
+shap.summary_plot(shap_values[1], samples) 
+vals = np.abs(shap_values[1]).mean(0) 
+print(list(vals)) 
+
+# ====== 
+# LR - R 
+# ====== 
+
+# 01 Descriptive Analysis 
+
+d001<-read.csv('C:\\Users\\Administrator\\s001.csv',head=TRUE,sep=",") 
+# d001<-read.csv(file.choose(),head=TRUE,sep=",") 
+d001=d001[-c(1:3)]    # Deleting the ID Column or the 1st Column Created by to_csv (Python) 
+colMeans(is.na(d001)) # Missing Rates 
+c001<-c("y003",
+        "x001","x002","x003","x004","x005","x006","x007","x008","x009","x010",
+        "x011","x012","x013","x014","x015","x016","x017",
+                             "x024","x025","x026","x027","x028","x029","x030",
+        "x031","x032","x033","x034","x035","x036",
+                             "x074","x075","x076","x077") 
+d001[c001]<-lapply(d001[c001],factor) 
+d001 
+str(d001) 
+summary(d001) 
+
+s001<-floor(0.75*nrow(d001)) 
+train<-sample(seq_len(nrow(d001)),size=s001) 
+d002a<-d001[train,] 
+d002b<-d001[-train,] 
+
+# Model Building & Evaluation 
+
+library(nnet) 
+m001<-multinom(y003~.,data=d002a) 
+summary(m001) 
+z001<-summary(m001)$coefficients/summary(m001)$standard.errors 
+z001 
+exp(coef(m001)) 
+
+# m001<-glm(y003~.,data=d002a,family="binomial") 
+# summary(m001) 
+# exp(coef(m001)) 
